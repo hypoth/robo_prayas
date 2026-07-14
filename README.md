@@ -1,13 +1,14 @@
 # PRAYAS4 
 
----
+
 ## Lab Group number 37
 
-* Vishalpathania (P426085) 
-* Yuga Bharathi K (P426174)
-* Rishav ranjan (P426006)
-* TA - Mohan Sai Dampa
----
+
+ * Vishalpathania (P426085)
+ * Yuga Bharathi K (P426174)
+ * Rishav ranjan (P426006)
+ * TA - Mohan Sai Dumpa
+ 
 ---
 
 ## Obstacles Avoiding Robot (From concept to v1.2)
@@ -95,8 +96,6 @@ The simple flow of sense, calcuate and act paradigm of this robot is depicted in
     MOVE_FWD --> LOOP_START
 ```
 Download link [Flow Chart](diagram/flowChart.svg)
-
-
 
 ## Arduino Sketch.
 The various versions of [Arduino sketch](Arduino/bot.ino) 
@@ -319,7 +318,6 @@ void stopRobot()
 		
 ```
 
-
 ## Learnings
 
 ### Mounting various components
@@ -354,10 +352,13 @@ void stopRobot()
         * autonomous navigation algorithms.
         * Localization support.  
 
+## Pictures and Videos  
 
-## Pictures and Videos
-![Started making bot](videos/IMG_1.jpg)
-
-Click below to Watch the video 
+![Started making bot](videos/IMG_1.jpg)  
+* Click below to Watch the video  
+  
 [![Watch the video](videos/IMG_2.jpg)](videos/video1.mp4)
 
+
+---
+---
