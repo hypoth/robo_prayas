@@ -38,6 +38,85 @@ The Software is devloped using Arduino IDE and libraries available for Arduino U
 Since this is first prototype and given the processing capabilites of Arduino Uno, a very basic loop for obstacle avoidance is implemented.
 
 ## Basic Flow
+The simple flow of sense, calcuate and act paradigm of this robot is depicted in following form. 
+
+``` dot
+digraph G {
+    // Styling for Markdown preview
+    fontname="Helvetica,Arial,sans-serif"
+    node [fontname="Helvetica,Arial,sans-serif", strokeWidth=1]
+    edge [fontname="Helvetica,Arial,sans-serif"]
+    
+    // Node styling rules
+    node [shape=box, style="filled,rounded", color="#1f77b4", fillcolor="#e1f5fe", fontcolor="#0288d1"] start, loop_start, measure, stop_back_stop, look_left, look_right, center_servo, t_left, t_right, stop_final, move_fwd;
+    node [shape=diamond, style=filled, color="#ff9800", fillcolor="#fff3e0", fontcolor="#e65100"] check_valid, check_safe, check_dir, check_speed;
+
+    // Flow diagram
+    start [label="Setup:\l- Configure Pin Modes\l- Attach & Center Servo (90°)\l- Start Serial", shape=ellipse, color="#2e7d32", fillcolor="#e8f5e9", fontcolor="#2e7d32"];
+    
+    start -> loop_start;
+    
+    loop_start [label="Loop:\lSet forwardSpeed = 80", shape=ellipse, color="#7b1fa2", fillcolor="#f3e5f5", fontcolor="#7b1fa2"];
+    
+    loop_start -> measure;
+    
+    measure [label="Measure Front Distance\l(Ultrasonic Pulse)"];
+    
+    measure -> check_valid;
+    
+    check_valid [label="Is frontDistance > 0?"];
+    
+    check_valid -> check_safe [label="Yes"];
+    check_valid -> check_speed [label="No"];
+    
+    check_safe [label="Is frontDistance \l<= minSafeDistance (25)?"];
+    
+    check_safe -> stop_back_stop [label="Yes\n(Obstacle)"];
+    check_safe -> check_speed [label="No\n(Clear)"];
+    
+    stop_back_stop [label="1. Stop Robot\l2. Move Backward (speed 70)\l3. Stop Robot"];
+    
+    stop_back_stop -> look_left;
+    
+    look_left [label="1. Turn Radar Left (0°)\l2. Measure Left Distance"];
+    
+    look_left -> look_right;
+    
+    look_right [label="1. Sweep Radar Right (0° to 180°)\l2. Blink Built-in LED\l3. Measure Right Distance"];
+    
+    look_right -> center_servo;
+    
+    center_servo [label="Center Radar Servo (90°)"];
+    
+    center_servo -> check_dir;
+    
+    check_dir [label="Is Left Distance \l> Right Distance?"];
+    
+    check_dir -> t_left [label="Yes"];
+    check_dir -> t_right [label="No"];
+    
+    t_left [label="Turn Left (speed 75)\lfor 800ms"];
+    t_right [label="Turn Right (speed 75)\lfor 800ms"];
+    
+    t_left -> stop_final;
+    t_right -> stop_final;
+    
+    stop_final [label="Stop Robot\lfor 200ms"];
+    
+    stop_final -> check_speed;
+    
+    check_speed [label="Is frontDistance > 25\lAND forwardSpeed\l!= currentMotorSpeed?"];
+    
+    check_speed -> move_fwd [label="Yes"];
+    check_speed -> loop_start [label="No"];
+    
+    move_fwd [label="Move Forward (speed 80)"];
+    
+    move_fwd -> loop_start;
+}
+
+
+```
 
 
 ## Arduino Sketch.
