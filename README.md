@@ -16,8 +16,8 @@ The schematics for the simulation can be found at ../schematics/DiffDriveBot.pdf
 Actual robot is constructed from the same schematicsis ../schematics/DiffDriveBot.pdf . 
 
 The key difference from schematics is 
-* ** Robot uses LN298 D dual motor power driver.**
-* ** 12 V Li Ion Battery pack is used for making the system.**
+* Robot uses LN298 D dual motor power driver.
+* 12 V Li Ion Battery pack is used for making the system.
 
 ## Robot Construction
 The robot consists of following main parts.
