@@ -10,10 +10,10 @@ The robot started as simple simulatios on online tool "TinkerCad". A basic versi
 https://www.tinkercad.com/things/lA5BwXk2kSj-diffdrivebotver1/editel?returnTo=https%3A%2F%2Fwww.tinkercad.com%2Fdashboard&sharecode=8Be7qrpKp4Ho1W9cGgfTjN29vAA4K9HrsxYx8px5Kfg
 
 ### Simulation Schematics
-The schematics for the simulation can be found at [schematicsis](../schematics/DiffDriveBot.pdf)
+The schematics for the simulation can be found at [schematicsis](schematics/DiffDriveBot.pdf)
 
 ### Robot Schematics
-Actual robot is constructed from the same [schematicsis](../schematics/DiffDriveBot.pdf) . 
+Actual robot is constructed from the same [schematicsis](schematics/DiffDriveBot.pdf) . 
 
 The key difference from schematics is 
 * Robot uses LN298 D dual motor power driver.
@@ -39,90 +39,43 @@ Since this is first prototype and given the processing capabilites of Arduino Un
 
 ## Basic Flow
 The simple flow of sense, calcuate and act paradigm of this robot is depicted in following form. 
-
-```
-digraph G {
-    // Styling for Markdown preview
-    fontname="Helvetica,Arial,sans-serif"
-    node [fontname="Helvetica,Arial,sans-serif", strokeWidth=1]
-    edge [fontname="Helvetica,Arial,sans-serif"]
-    
-    // Node styling rules
-    node [shape=box, style="filled,rounded", color="#1f77b4", fillcolor="#e1f5fe", fontcolor="#0288d1"] start, loop_start, measure, stop_back_stop, look_left, look_right, center_servo, t_left, t_right, stop_final, move_fwd;
-    node [shape=diamond, style=filled, color="#ff9800", fillcolor="#fff3e0", fontcolor="#e65100"] check_valid, check_safe, check_dir, check_speed;
-
-    // Flow diagram
-    start [label="Setup:\l- Configure Pin Modes\l- Attach & Center Servo (90°)\l- Start Serial", shape=ellipse, color="#2e7d32", fillcolor="#e8f5e9", fontcolor="#2e7d32"];
-    
-    start -> loop_start;
-    
-    loop_start [label="Loop:\lSet forwardSpeed = 80", shape=ellipse, color="#7b1fa2", fillcolor="#f3e5f5", fontcolor="#7b1fa2"];
-    
-    loop_start -> measure;
-    
-    measure [label="Measure Front Distance\l(Ultrasonic Pulse)"];
-    
-    measure -> check_valid;
-    
-    check_valid [label="Is frontDistance > 0?"];
-    
-    check_valid -> check_safe [label="Yes"];
-    check_valid -> check_speed [label="No"];
-    
-    check_safe [label="Is frontDistance \l<= minSafeDistance (25)?"];
-    
-    check_safe -> stop_back_stop [label="Yes\n(Obstacle)"];
-    check_safe -> check_speed [label="No\n(Clear)"];
-    
-    stop_back_stop [label="1. Stop Robot\l2. Move Backward (speed 70)\l3. Stop Robot"];
-    
-    stop_back_stop -> look_left;
-    
-    look_left [label="1. Turn Radar Left (0°)\l2. Measure Left Distance"];
-    
-    look_left -> look_right;
-    
-    look_right [label="1. Sweep Radar Right (0° to 180°)\l2. Blink Built-in LED\l3. Measure Right Distance"];
-    
-    look_right -> center_servo;
-    
-    center_servo [label="Center Radar Servo (90°)"];
-    
-    center_servo -> check_dir;
-    
-    check_dir [label="Is Left Distance \l> Right Distance?"];
-    
-    check_dir -> t_left [label="Yes"];
-    check_dir -> t_right [label="No"];
-    
-    t_left [label="Turn Left (speed 75)\lfor 800ms"];
-    t_right [label="Turn Right (speed 75)\lfor 800ms"];
-    
-    t_left -> stop_final;
-    t_right -> stop_final;
-    
-    stop_final [label="Stop Robot\lfor 200ms"];
-    
-    stop_final -> check_speed;
-    
-    check_speed [label="Is frontDistance > 25\lAND forwardSpeed\l!= currentMotorSpeed?"];
-    
-    check_speed -> move_fwd [label="Yes"];
-    check_speed -> loop_start [label="No"];
-    
-    move_fwd [label="Move Forward (speed 80)"];
-    
-    move_fwd -> loop_start;
-}
-
-
-```
-
+[Flow Chart](diagram/flowChart.svg)
 
 ## Arduino Sketch.
-The various versions of [Arduino sketch](https://github.com/hypoth/robo_prayas/blob/main/Arduino/bot.ino) 
+The various versions of [Arduino sketch](Arduino/bot.ino) 
 
 
+## Learnings
 
+### Mounting various components
+* Loose connections
+    * Jumper wires are not best options. 
+* Flimsy Chassis cuttings, leading to cracking of acrylic. 
+* Bobbling of wheels
+    * Balancing of wheels is very difficult. 
+    * The robo drifts to its side and does not maintain steady path. 
+    * Needs constant adjustments, which are not implemented in this version. 
+* Mounting of SR04 Ultrasonic sensor of Servo
+    * The longitudinal axis of robot and Servo motors zero position does not match all the time. 
+    * During gluing of sensor a axis mismatch occurs, which was corrected by adding fixed bias. 
+    * This results in some loss of movement at the extreme ends, but is a good compromise.  
+* Battery Case mounting
+    * Spring loaded battery casing is difficult to handle and causes unexpected shift in variousl components. 
+        * used zip-ties but the movement in components (dc motor) still remains. 
+        * switch for battery is required, which is not part of this version/kit.
+        
+### Calibration is necessary, but can not solve for multiple dynamic problems.
+* Battery Voltage Changes. 
+    Voltage drop causes rpm of motor to change for same PWM command. So the precise contorl becomes difficult.
+    * Active feedback is better option for precise control
 
+## Future Enhancements
+   * Soldering of components instead of jumper wires.
+   * Proper harness and clamps for Motors.
+   * Balancing of wheels.
+   * Feedback control for motor speed control.
+        * encoder based.
+   * Add enhanced processing power to implement
+        * autonomous navigation algorithms.
+        * Localization support.  
  
