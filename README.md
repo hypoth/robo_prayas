@@ -5,7 +5,7 @@
 
 * Vishalpathania (P426085) 
 * Yuga Bharathi K (P426174)
-* Rishav ranjan (O426006)
+* Rishav ranjan (P426006)
 * TA - Mohan Sai Dampa
 ---
 ---
