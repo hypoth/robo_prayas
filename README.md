@@ -346,7 +346,7 @@ void stopRobot()
 
 ## Pictures and Videos
 ![Stated making bot](videos/IMG_1.jpg)
-![Version 1.1.2](videos/IMG_2.jpg)
+![Version 1_1_2](videos/IMG_2.jpg)
 
 
 [![Watch the video]()](videos/video1.mp4)
