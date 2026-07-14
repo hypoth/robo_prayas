@@ -21,10 +21,17 @@ The key difference from schematics is
 
 ## Robot Construction
 The robot consists of following main parts.
-* **  **
-* **  **
-* **  **
-* **  **
+* Acrylic Chassis, Track Width ~ 100mm 
+* Castor Wheel 
+* Yellow Wheel dia 65mm
+* Arduino Uno 
+* LN298 D dual motor dirver
+* Li Ion, battery pack (3 nos, 3.7 V)
+* DC motor (max 100 rpm)
+* connection wires and jumpers. 
+
+For the prototype, the jumper wires, zip ties are used which do not provide very rigid structure. 
+For version 1, these provide a good enough platform for prototyping.
 
 ## Software 
 The Software is devloped using Arduino IDE and libraries available for Arduino Uno. 
