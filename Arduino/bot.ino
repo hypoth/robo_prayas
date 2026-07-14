@@ -1,12 +1,12 @@
 #include <Servo.h>
 
 // ---------------- Motor Pins ----------------
-const int motorLeftPin1 = 9;
-const int motorLeftPin2 = 10;
+const int motorLeftPin1 = 2;
+const int motorLeftPin2 = 4;
 const int ena = 11;
 
-const int motorRightPin1 = 2;
-const int motorRightPin2 = 4;
+const int motorRightPin1 = 9;
+const int motorRightPin2 = 10;
 const int enb = 3;
 
 // ---------------- Ultrasonic Sensor ----------------
@@ -61,7 +61,7 @@ void loop()
   delay(80);
 
   
-  Serial.println("Front Clearance: " + String(frontDistance));
+  //Serial.println("Front Clearance: " + String(frontDistance));
 	if(frontDistance > 0) {
     if(frontDistance <= minSafeDistance){
       stopRobot();
@@ -73,12 +73,12 @@ void loop()
       stopRobot();
       delay(200);
 
-      // Look Left
+      // Look Right
       radar.write(vehicleRadarAxisDifferenceAngle-90);
       delay(300);
-      float left = measureDistance();
-      Serial.println("Left Side clearance: " + String(left));
-      // Look Right
+      float right = measureDistance();
+      Serial.println("Rigt Side clearance: " + String(right));
+      // Look Left
       for(int i = 0; i<=vehicleRadarAxisDifferenceAngle+90; i=i+30)
       {
         radar.write(i);
@@ -87,8 +87,8 @@ void loop()
         digitalWrite(LED_BUILTIN, LOW);
         delay(100);
       }
-      float right = measureDistance();
-      Serial.println("Right Side clearance: " + String(right));
+      float left = measureDistance();
+      Serial.println("Left Side clearance: " + String(left));
 
       // Center Servo
       radar.write(vehicleRadarAxisDifferenceAngle);
@@ -97,13 +97,13 @@ void loop()
       if(left > right) // turn in direction where you have longer visibility
       {
         turnLeft(botTurningSpeed);
-        delay(800);
+        delay(650);
         Serial.println("Turning Left with Speed: " + String(botTurningSpeed));
       }
       else
       {
         turnRight(botTurningSpeed);
-        delay(800);
+        delay(650);
         Serial.println("Turning Right with Speed: " + String(botTurningSpeed));
       }
 
@@ -119,7 +119,7 @@ void loop()
     if(mappedMotorSpeed != currentMotorSpeed) {
   	  forward(mappedMotorSpeed);
       delay(200);
-      Serial.println("Moving Forward with Speed: " + String(mappedMotorSpeed));
+      //Serial.println("Moving Forward with Speed: " + String(mappedMotorSpeed));
     }
   }  
   
