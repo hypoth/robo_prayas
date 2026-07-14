@@ -26,8 +26,12 @@ const int sensorDurationMax = 25000;
 
 const int traceBackSpeed = 70;
 const int botTurningSpeed = 75;
-const int defaultforwardSpeed = 80;
+const int defaultforwardSpeed = 65;
 int currentMotorSpeed = 0;
+
+const int maxMotorPWMVal = 80;
+const int minMotorPWMVal = 65; // deadband of motor
+const float maxMotorPowerDistance = 150;
 
 void setup()
 {
@@ -109,10 +113,13 @@ void loop()
   } 
   
   if(frontDistance > minSafeDistance){
-    if(forwardSpeed != currentMotorSpeed) {
-  	  forward(forwardSpeed);
+    //  map distance range 
+    int mappedMotorSpeed = map(frontDistance, minSafeDistance,maxMotorPowerDistance, minMotorPWMVal,maxMotorPWMVal);
+
+    if(mappedMotorSpeed != currentMotorSpeed) {
+  	  forward(mappedMotorSpeed);
       delay(200);
-      Serial.println("Moving Forward with Speed: " + String(forwardSpeed));
+      Serial.println("Moving Forward with Speed: " + String(mappedMotorSpeed));
     }
   }  
   
