@@ -10,10 +10,10 @@ The robot started as simple simulatios on online tool "TinkerCad". A basic versi
 https://www.tinkercad.com/things/lA5BwXk2kSj-diffdrivebotver1/editel?returnTo=https%3A%2F%2Fwww.tinkercad.com%2Fdashboard&sharecode=8Be7qrpKp4Ho1W9cGgfTjN29vAA4K9HrsxYx8px5Kfg
 
 ### Simulation Schematics
-The schematics for the simulation can be found at ../schematics/DiffDriveBot.pdf
+The schematics for the simulation can be found at [schematicsis](../schematics/DiffDriveBot.pdf)
 
 ### Robot Schematics
-Actual robot is constructed from the same schematicsis ../schematics/DiffDriveBot.pdf . 
+Actual robot is constructed from the same [schematicsis](../schematics/DiffDriveBot.pdf) . 
 
 The key difference from schematics is 
 * Robot uses LN298 D dual motor power driver.
@@ -40,7 +40,7 @@ Since this is first prototype and given the processing capabilites of Arduino Un
 ## Basic Flow
 The simple flow of sense, calcuate and act paradigm of this robot is depicted in following form. 
 
-``` dot
+```
 digraph G {
     // Styling for Markdown preview
     fontname="Helvetica,Arial,sans-serif"
@@ -120,6 +120,8 @@ digraph G {
 
 
 ## Arduino Sketch.
+The various versions of [Arduino sketch](https://github.com/hypoth/robo_prayas/blob/main/Arduino/bot.ino) 
+
 
 
 
