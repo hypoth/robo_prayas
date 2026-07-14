@@ -1,5 +1,16 @@
-# Obstacles Avoiding Robot (From concept to v1.2)
+# PRAYAS4 
 
+---
+## Lab Group number 37
+
+* Vishalpathania (P426085) 
+* Yuga Bharathi K (P426174)
+* Rishav ranjan (O426006)
+* TA - Mohan Sai Dampa
+---
+---
+
+## Obstacles Avoiding Robot (From concept to v1.2)
 This document details the mathematical framework, calculations, and lookup tables required to make a two-wheel differential drive robot which can execute precise in-place turns, move forward and backwards while avoiding obstacles.
 
 
@@ -345,9 +356,8 @@ void stopRobot()
 
 
 ## Pictures and Videos
-![Stated making bot](videos/IMG_1.jpg)
-![Version 1_1_2](videos/IMG_2.jpg)
+![Started making bot](videos/IMG_1.jpg)
 
-
-[![Watch the video]()](videos/video1.mp4)
+Click below to Watch the video 
+[![Watch the video](videos/IMG_2.jpg)](videos/video1.mp4)
 
