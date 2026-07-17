@@ -1,9 +1,4 @@
 #include <Servo.h>
-#define PD_CONTROL
-#ifndef PD_CONTROL
-  #define SIMPLE_CONTROL
-#endif 
-
 #define DEBUG
 
 constexpr int MAX_IR_SENSORS = 5;
@@ -20,13 +15,13 @@ const int irPinMapping[MAX_IR_SENSORS] = {5,6,7,8,12};
 
 int n = 0; // buffer number in irSensorVal
 // ---------------- Motor Pins ----------------
-const int motorLeftPin1 = 9;
-const int motorLeftPin2 = 10;
-const int ena = 11;
+const int motorLeftPin1 = 2;
+const int motorLeftPin2 = 4;
+const int ena = 3;
 
-const int motorRightPin1 = 2;
-const int motorRightPin2 = 4;
-const int enb = 3;
+const int motorRightPin1 = 10;
+const int motorRightPin2 = 9;
+const int enb = 11;
 
 // Controller Configuration
 // PD
@@ -36,15 +31,15 @@ float error =0;
 int lastError = 0; // Derivative ctrl variables
 float controlOutput = 0;
 unsigned long lastTime = 0;
-const int maxMotorPWMVal = 150; // max can be 255 
-const int minMotorPWMVal = 50; // deadband of motor
-const int baseMotorSpeed = 100; // base speed for error correction
+const int maxMotorPWMVal = 110; // max can be 255 
+const int minMotorPWMVal = 30; // deadband of motor
+const int baseMotorSpeed = 70; // base speed for error correction
 
 // if else ctrl variables
-const int defaultforwardSpeed = 80; //cruiseSpeed
-const int defaultTraceBackSpeed = 85; //turnSpeed
-const int botTurningSpeed = 70; // pivotSpeed
-const int defaultSearchLineSpeed = 70;
+const int defaultforwardSpeed = 80;
+const int defaultTraceBackSpeed = 70;
+const int botTurningSpeed = 70;
+const int defaultSearchLineSpeed = 55;
 int lastDirection = 0; // -1 Left, 1 Right, 0 Center
 
 
@@ -64,9 +59,26 @@ void setup()
   for(int i = 0; i< MAX_IR_SENSORS; i++){
     pinMode(irPinMapping[i], INPUT);
   }
-  
+  pinMode(LED_BUILTIN, OUTPUT);
   Serial.begin(9600);
   lastTime = millis();
+  
+  //stop the motors
+  digitalWrite(motorLeftPin1, LOW);
+  digitalWrite(motorLeftPin2, LOW);
+
+  digitalWrite(motorRightPin1, LOW);
+  digitalWrite(motorRightPin2, LOW);
+  analogWrite(ena, 0);
+  analogWrite(enb, 0);
+
+  digitalWrite(LED_BUILTIN,HIGH);
+  //updateDiffDriveMotors(70,-70); working 
+  //ctrlMotorMoves(defaultforwardSpeed, defaultforwardSpeed, true, true); drifting left
+  //ctrlMotorMoves(botTurningSpeed / 2, botTurningSpeed, true, true); // goes in circle
+  //ctrlMotorMoves(botTurningSpeed, botTurningSpeed / 2, true, true); // right circle larger than left circle.
+  //ctrlMotorMoves(defaultTraceBackSpeed, defaultTraceBackSpeed, false, true); // left turn , left wheel stationary (fix added)
+  //ctrlMotorMoves(defaultTraceBackSpeed, defaultTraceBackSpeed, true, false); // right turn, left wheel moves back
 
 }
 
@@ -77,7 +89,7 @@ void loop() {
   unsigned long loopTime = currentTime - lastTime;
   lastTime = currentTime;
   //Add  loop here
-
+/*
   int ctrlMode = 1; //1--> PD control, 0--> if else logic  //digitalRead(ctrlModeSelectPin);
 
   // read all the IR sensors
@@ -136,6 +148,7 @@ void loop() {
       }
     }
   }
+*/  
   // update the buffer number you need for next iteration of reading.
   n++;
   if(n >= N) n = 0;
@@ -159,19 +172,19 @@ void loop() {
 void ctrlMotorMoves(int leftSpeed, int rightSpeed, bool leftForward, bool rightForward) {
   
   if (leftForward == true) {
+    digitalWrite(motorLeftPin1, LOW);
+    digitalWrite(motorLeftPin2, HIGH);
+  } else {
     digitalWrite(motorLeftPin1, HIGH);
     digitalWrite(motorLeftPin2, LOW);
-  } else {
-    digitalWrite(motorLeftPin1, LOW);
-    digitalWrite(motorLeftPin1, HIGH);
   }
   analogWrite(ena, leftSpeed);
   if(rightForward == true) {
-    digitalWrite(motorRightPin1, HIGH);
-    digitalWrite(motorRightPin2, LOW);
-  } else {
     digitalWrite(motorRightPin1, LOW);
     digitalWrite(motorRightPin2, HIGH);
+  } else {
+    digitalWrite(motorRightPin1, HIGH);
+    digitalWrite(motorRightPin2, LOW);
   }
   analogWrite(enb, rightSpeed);
 }
@@ -218,7 +231,7 @@ void updateDiffDriveMotors(int leftMotorSpeed,int rightMotorSpeed){
     digitalWrite(motorLeftPin2, LOW);
     leftMotorSpeed = abs(leftMotorSpeed);
   }
-  leftMotorSpeed = constraint(leftMotorSpeed,minMotorPWMVal,maxMotorPWMVal);
+  //leftMotorSpeed = constraint(leftMotorSpeed,minMotorPWMVal,maxMotorPWMVal);
   
   if(rightMotorSpeed>=0) {
     digitalWrite(motorRightPin1, LOW);
@@ -228,9 +241,9 @@ void updateDiffDriveMotors(int leftMotorSpeed,int rightMotorSpeed){
     digitalWrite(motorRightPin2, LOW);
     rightMotorSpeed = abs(rightMotorSpeed);
   }
-  rightMotorSpeed = constraint(rightMotorSpeed,minMotorPWMVal,maxMotorPWMVal);
-  
+  //rightMotorSpeed = constraint(rightMotorSpeed,minMotorPWMVal,maxMotorPWMVal);
   analogWrite(ena, leftMotorSpeed);
   analogWrite(enb, rightMotorSpeed);
 }
+
 
