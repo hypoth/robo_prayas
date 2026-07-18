@@ -1,21 +1,28 @@
-// Activity 1: Blink the onboard LED
-
-#define LED_PIN 2   // change to 4 if your board's onboard LED doesn't respond
+// Activity 1b: Blink + Serial print
+#define LED_PIN 2
 
 void setup() {
 
   pinMode(LED_PIN, OUTPUT);
 
+  Serial.begin(115200);   // start serial communication at 115200 baud
+
+  Serial.println("ESP32 Serial started!");
+
 }
 
 void loop() {
 
-  digitalWrite(LED_PIN, HIGH);  // LED ON
+  digitalWrite(LED_PIN, HIGH);
 
-  delay(1000);                  // wait 1 second
+  Serial.println("LED ON");
 
-  digitalWrite(LED_PIN, LOW);   // LED OFF
+  delay(1000);
 
-  delay(1000);                  // wait 1 second
+  digitalWrite(LED_PIN, LOW);
+
+  Serial.println("LED OFF");
+
+  delay(1000);
 
 }
