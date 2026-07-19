@@ -33,11 +33,11 @@
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-//#include <String.h>
 
 // ---------- WiFi Access Point settings ----------
 const char* AP_SSID = "sevenSeven";
 const char* AP_PASS = "roboRobo37";   // must be 8+ chars
+const int   AP_CHANNEL = 13;          // fix the WiFi channel here (1-11 typical, 1-13 in some regions)
 
 // ---------- Motor pins ----------
 #define ENA D5   // left motor PWM (enable)
@@ -47,7 +47,7 @@ const char* AP_PASS = "roboRobo37";   // must be 8+ chars
 #define IN4 D0
 #define ENB D4   // right motor PWM (enable)
 
-const int MIN_PWM = 60;   // minimum PWM to overcome motor static friction - tune this
+const int MIN_PWM = 50;   // minimum PWM to overcome motor static friction - tune this
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
@@ -101,10 +101,10 @@ const char htmlPage[] PROGMEM = R"HTML(
   html,body{height:100%;margin:0;background:#111;color:#eee;font-family:sans-serif;
     display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none;}
   #status{position:absolute;top:10px;font-size:14px;color:#8f8;}
-  #pad{width:280px;height:280px;border-radius:50%;background:#222;border:3px solid #444;
+  #pad{width:340px;height:340px;border-radius:50%;background:#222;border:3px solid #444;
     position:relative;touch-action:none;}
-  #stick{width:90px;height:90px;border-radius:50%;background:#3a8;position:absolute;
-    left:95px;top:95px;box-shadow:0 0 15px #3a8;}
+  #stick{width:80px;height:80px;border-radius:50%;background:#3a8;position:absolute;
+    left:130px;top:130px;box-shadow:0 0 15px #3a8;}
 </style>
 </head>
 <body>
@@ -114,7 +114,7 @@ const char htmlPage[] PROGMEM = R"HTML(
   const pad = document.getElementById('pad');
   const stick = document.getElementById('stick');
   const status = document.getElementById('status');
-  const R = 140, stickR = 45;
+  const R = 170, stickR = 40;   // R = pad radius (340/2), stickR = stick radius (80/2)
   let ws, x=0, y=0, dragging=false;
 
   function connect(){
@@ -129,19 +129,34 @@ const char htmlPage[] PROGMEM = R"HTML(
   }
   setInterval(sendCmd, 60); // stream at ~16Hz
 
+  // Tweak these two to change how sensitive the control feels:
+  const DEADZONE = 0.15;   // 0-1: ignore movement within this fraction of center
+  const EXPO = 0.6;        // 0-1: 0 = fully linear, closer to 1 = softer near center
+
+  function shape(v){
+    // apply deadzone
+    if (Math.abs(v) < DEADZONE) return 0;
+    // rescale so output still reaches -1..1 smoothly past the deadzone
+    const sign = v < 0 ? -1 : 1;
+    const mag = (Math.abs(v) - DEADZONE) / (1 - DEADZONE);
+    // expo blend: small inputs get suppressed more, full stick still hits 1.0
+    const shaped = EXPO*mag*mag*mag + (1-EXPO)*mag;
+    return sign*shaped;
+  }
+
   function handlePos(px, py){
     const rect = pad.getBoundingClientRect();
     let dx = px - (rect.left + R);
     let dy = py - (rect.top + R);
     let dist = Math.sqrt(dx*dx+dy*dy);
     if(dist > R - stickR){ const s=(R-stickR)/dist; dx*=s; dy*=s; }
-    stick.style.left = (95+dx)+'px';
-    stick.style.top  = (95+dy)+'px';
-    x = dx/(R-stickR);
-    y = dy/(R-stickR); // invert so up = forward
+    stick.style.left = (130+dx)+'px';
+    stick.style.top  = (130+dy)+'px';
+    x = shape(dx/(R-stickR));
+    y = shape(dy/(R-stickR)); // changed from -y invert so up = forward
   }
   function reset(){
-    x=0; y=0; stick.style.left='95px'; stick.style.top='95px'; sendCmd();
+    x=0; y=0; stick.style.left='130px'; stick.style.top='130px'; sendCmd();
   }
 
   pad.addEventListener('pointerdown', e=>{ dragging=true; handlePos(e.clientX,e.clientY); });
@@ -178,7 +193,7 @@ void setup() {
 
   stopMotors();
 
-  WiFi.softAP(AP_SSID, AP_PASS);
+  WiFi.softAP(AP_SSID, AP_PASS, AP_CHANNEL);
   Serial.print("AP started. Connect phone to WiFi: ");
   Serial.println(AP_SSID);
   Serial.print("Then open http://");
