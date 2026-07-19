@@ -138,7 +138,7 @@ const char htmlPage[] PROGMEM = R"HTML(
     stick.style.left = (95+dx)+'px';
     stick.style.top  = (95+dy)+'px';
     x = dx/(R-stickR);
-    y = -dy/(R-stickR); // invert so up = forward
+    y = dy/(R-stickR); // invert so up = forward
   }
   function reset(){
     x=0; y=0; stick.style.left='95px'; stick.style.top='95px'; sendCmd();
