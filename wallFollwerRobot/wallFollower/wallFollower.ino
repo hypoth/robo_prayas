@@ -1,8 +1,33 @@
 /*
   NodeMCU (ESP8266) Wall follower robot
 */
-#include <ESP8266WiFi.h>
-#include <TelnetStream.h>
+#define DEBUG
+#ifdef DEBUG
+  #include <ESP8266WiFi.h>
+  #define DBG_WITH_UDP_SOCKET
+
+  #ifdef DBG_WITH_UDP_SOCKET
+    #undef DBG_WITH_TELNET
+  #else
+    #define DBG_WITH_TELNET
+  #endif
+#endif  
+
+#ifdef DBG_WITH_TELNET
+  #include <TelnetStream.h>
+  // Create a Telnet Server on port 23
+  WiFiServer telnetServer(23);
+  WiFiClient telnetClient;
+
+#endif
+
+#ifdef DBG_WITH_UDP_SOCKET
+  #include <WiFiUdp.h>
+  IPAddress PC_IP(192, 168, 1, 100);   // <-- set to your PC's LAN IP
+  const uint16_t PC_PORT = 4210;
+  WiFiUDP udp;
+  unsigned long packetSeq = 0;
+#endif
 
 #define ENA D1
 #define IN1 D0
@@ -14,13 +39,11 @@
 #define TRIG_PIN   D7
 #define ECHO_SIDE  D5
 #define ECHO_FRONT D6
-
 #define MAX_SENSORS 2
+const bool FOLLOW_RIGHT_WALL = true;
 
-#define DEBUG
-#define N 200 // max depth of debug buffer.
+#define N 200 // max depth of raw buffer.
 #ifdef DEBUG
-#define DBG_WITH_TELNET
   #define MAX_COLUMNS MAX_SENSORS+4 
   int rawSensorVal[N][MAX_COLUMNS]; // maintain history with error vals
 #else
@@ -28,16 +51,10 @@
   int rawSensorVal[N][MAX_SENSORS]; 
 #endif
 
-
-const char* ssid = "Galaxygalaxy";
-const char* password = "nokmobPas1";
-
-// Create a Telnet Server on port 23
-WiFiServer telnetServer(23);
-WiFiClient telnetClient;
-
-
-const bool FOLLOW_RIGHT_WALL = true;
+#ifdef DEBUG
+  const char* ssid = "Galaxygalaxy";
+  const char* password = "nokmobPas1";
+#endif
 
 // ---------------- Tunable parameters ----------------
 const float SETPOINT_CM   = 15.0;   // desired distance from the wall
@@ -93,6 +110,24 @@ void drive(int leftSpeed, int rightSpeed) {
   setMotor(ENA, IN1, IN2, rightSpeed);
 }
 
+#ifdef DBG_WITH_UDP_SOCKET
+  // Fire-and-forget: one UDP packet per sample, CSV formatted.
+  // seq,millis,side_cm,front_cm,error,pid_out,left_speed,right_speed
+  void sendTelemetry(long sideCM, long frontCM, float error, float output,
+                      int leftSpeed, int rightSpeed) {
+    if (WiFi.status() != WL_CONNECTED) return; // don't block/stall control loop
+
+    char buf[128];
+    int len = snprintf(buf, sizeof(buf), "%lu,%lu,%ld,%ld,%.2f,%.2f,%d,%d",
+                        packetSeq++, millis(), sideCM, frontCM, error, output,
+                        leftSpeed, rightSpeed);
+
+    udp.beginPacket(PC_IP, PC_PORT);
+    udp.write((const uint8_t*)buf, len);
+    udp.endPacket();
+  }
+#endif
+
 void setup() {
   Serial.begin(115200);
 
@@ -107,26 +142,36 @@ void setup() {
   analogWriteFreq(1000);
   stopMotors();
 
-  #ifdef DBG_WITH_TELNET
+  #ifdef DEBUG
     // Connect to WiFi
+    WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
     Serial.println();
     Serial.print("Connecting to ");
     Serial.println(ssid);
-
-    while (WiFi.status() != WL_CONNECTED) {
+    unsigned long wifiStart = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - wifiStart < 15000) {
       delay(500);
       Serial.print(".");
     }
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println();
+      Serial.print("Connected. IP: ");
+      Serial.println(WiFi.localIP());
+    } else {
+      Serial.println("\nWiFi FAILED - continuing without telemetry.");
+    }
 
-    Serial.println("\nWiFi connected");
-    Serial.print("IP Address: ");
-    Serial.println(WiFi.localIP());
+    #ifdef DBG_WITH_UDP_SOCKET
+      udp.begin(PC_PORT); // not strictly needed for send-only, but harmless
+    #endif
 
-    // Start the server
-    telnetServer.begin();
-    Serial.println("Telnet server started");
-    TelnetStream.begin();
+    #ifdef DBG_WITH_TELNET
+      // Start the server
+      telnetServer.begin();
+      Serial.println("Telnet server started");
+      TelnetStream.begin();
+    #endif
   #endif
 
   lastTime = millis();
@@ -185,8 +230,11 @@ void loop() {
   
   Serial.println("Loop is running... sending to Telnet next.");
   
-  #ifdef DBG_WITH_TELNET 
-    TelnetStream.handle(); 
+  #ifdef DBG_WITH_UDP_SOCKET
+    sendTelemetry(sideCM, frontCM, error, output, leftSpeed, rightSpeed);
+  #endif
+  
+  #ifdef DBG_WITH_TELNET  
     // Check if a new client has connected
     if (telnetServer.hasClient()) {
       if (!telnetClient || !telnetClient.connected()) {
@@ -206,9 +254,3 @@ void loop() {
     }
   #endif
 }
-
-//  stopMotors();
-//  if (millis() - lastCmdTime > CMD_TIMEOUT) {
-//    stopMotors();
-//  }
-
