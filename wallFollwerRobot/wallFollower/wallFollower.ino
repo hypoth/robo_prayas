@@ -23,7 +23,7 @@
 
 #ifdef DBG_WITH_UDP_SOCKET
   #include <WiFiUdp.h>
-  IPAddress PC_IP(192, 168, 1, 100);   // <-- set to your PC's LAN IP
+  IPAddress PC_IP(10,42,0,1 );//192, 168, 137, 1);   // <-- set to your PC's LAN IP
   const uint16_t PC_PORT = 4210;
   WiFiUDP udp;
   unsigned long packetSeq = 0;
@@ -40,7 +40,7 @@
 #define ECHO_SIDE  D5
 #define ECHO_FRONT D6
 #define MAX_SENSORS 2
-const bool FOLLOW_RIGHT_WALL = true;
+const bool FOLLOW_RIGHT_WALL = false;
 
 #define N 200 // max depth of raw buffer.
 #ifdef DEBUG
@@ -52,21 +52,21 @@ const bool FOLLOW_RIGHT_WALL = true;
 #endif
 
 #ifdef DEBUG
-  const char* ssid = "Galaxygalaxy";
-  const char* password = "nokmobPas1";
+  const char* ssid = "lp";
+  const char* password = "lappyLappy1";
 #endif
 
 // ---------------- Tunable parameters ----------------
-const float SETPOINT_CM   = 15.0;   // desired distance from the wall
-const float FRONT_STOP_CM = 20.0;   // front distance that triggers a pivot
+const float SETPOINT_CM   = 20.0;   // desired distance from the wall
+const float FRONT_STOP_CM = 25.0;   // front distance that triggers a pivot
 const float LOST_WALL_CM  = 60.0;   // treat readings beyond this as "no wall"
-const int   BASE_SPEED    = 180;    // 0-255 forward cruising speed
-const int   MAX_SPEED     = 255;
-const int   PIVOT_SPEED   = 150;
+const int   BASE_SPEED    = 65; //180;    
+const int   MAX_SPEED     = 80; 
+const int   PIVOT_SPEED   = 60;// 
 
-float Kp = 6.0;
+float Kp = 1.0;
 float Ki = 0.02;
-float Kd = 3.0;
+float Kd = 4.0;
 // ------------------------------------------------------
 
 float integral = 0;
@@ -85,16 +85,14 @@ long readDistanceCM(int echoPin) {
   return duration / 58;         // convert to cm
 }
 
-const int MIN_PWM = 50;   // minimum PWM to overcome motor static friction - tune this
-
 void setMotor(int enaPin, int in1, int in2, int speed) {
   speed = constrain(speed, -MAX_SPEED, MAX_SPEED);
   if (speed >= 0) {
-    digitalWrite(in1, HIGH);
-    digitalWrite(in2, LOW);
-  } else {
     digitalWrite(in1, LOW);
     digitalWrite(in2, HIGH);
+  } else {
+    digitalWrite(in1, HIGH);
+    digitalWrite(in2, LOW);
     speed = -speed;
   }
   analogWrite(enaPin, speed);
@@ -138,7 +136,7 @@ void setup() {
   pinMode(ENA, OUTPUT); pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
   pinMode(ENB, OUTPUT); pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
 
-  analogWriteRange(255); // so analogWrite() takes 0-255 like the constants above
+  analogWriteRange(255);
   analogWriteFreq(1000);
   stopMotors();
 
@@ -163,7 +161,7 @@ void setup() {
     }
 
     #ifdef DBG_WITH_UDP_SOCKET
-      udp.begin(PC_PORT); // not strictly needed for send-only, but harmless
+      udp.begin(PC_PORT);
     #endif
 
     #ifdef DBG_WITH_TELNET
@@ -179,11 +177,11 @@ void setup() {
 
 void loop() {
   long sideCM  = readDistanceCM(ECHO_SIDE);
+  long rawSideCM = sideCM; 
   delay(60); // let the first SR04 echo fully settle before firing the next
   long frontCM = readDistanceCM(ECHO_FRONT);
   delay(60);
 
-  // --- Front obstacle: pivot away from the wall we're following ---
   if (frontCM > 0 && frontCM < FRONT_STOP_CM) {
     if (FOLLOW_RIGHT_WALL) {
       drive(-PIVOT_SPEED, PIVOT_SPEED); // pivot left, away from right wall
@@ -192,11 +190,12 @@ void loop() {
     }
     integral = 0; // don't let the PID wind up while pivoting
     lastError = 0;
+    sendTelemetry(sideCM, frontCM, 0, 0, -PIVOT_SPEED, PIVOT_SPEED);
     return;
   }
 
   // --- Side wall PID ---
-  if (sideCM < 0) sideCM = LOST_WALL_CM; // no echo -> assume wall is far away
+  if (sideCM < 0) sideCM = LOST_WALL_CM; // no echo means wall is far away
 
   float error = SETPOINT_CM - sideCM; // >0 = too close, <0 = too far
 
@@ -228,10 +227,10 @@ void loop() {
   Serial.printf("side=%ld front=%ld err=%.1f out=%.1f  L=%d R=%d\n",
                 sideCM, frontCM, error, output, leftSpeed, rightSpeed);
   
-  Serial.println("Loop is running... sending to Telnet next.");
+  //Serial.println("Loop is running... sending to Telnet next.");
   
   #ifdef DBG_WITH_UDP_SOCKET
-    sendTelemetry(sideCM, frontCM, error, output, leftSpeed, rightSpeed);
+    sendTelemetry(rawSideCM, frontCM, error, output, leftSpeed, rightSpeed);
   #endif
   
   #ifdef DBG_WITH_TELNET  
