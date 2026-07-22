@@ -15,8 +15,9 @@ import csv
 import socket
 import time
 
-FIELDS = ["seq", "robot_millis", "mode", "side_cm", "front_cm",
-          "error", "pid_output", "left_speed", "right_speed", "recv_time"]
+FIELDS = ["seq", "robot_millis", "mode", "running", "side_cm", "front_cm",
+          "kp", "ki", "kd", "dt", "error", "integral", "derivative", "output",
+          "left_speed", "right_speed", "recv_time"]
 
 
 def main():

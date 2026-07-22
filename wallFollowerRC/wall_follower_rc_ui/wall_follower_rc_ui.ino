@@ -5,11 +5,10 @@
   hotspot network) with two modes:
     - Wall Follow: autonomous PID wall-following, gains/setpoints tunable live
     - RC Drive   : manual on-screen D-pad control
-  This may not work with hotspot on android phones as the hotspot there blocks UDP traffic
 
   A WebSocket carries commands in and telemetry out in real time.
-  Raw sensor data can still be captured via the udp_logger.py
-  To start Capture toggle button in the web UI.
+  Raw sensor data can still be captured via the existing UDP broadcast +
+  udp_logger.py, now gated by a Capture toggle in the web UI.
 */
 
 #include <ESP8266WiFi.h>
@@ -30,7 +29,7 @@ const uint16_t PC_PORT = 4210;
 WiFiUDP udp;
 unsigned long udpSeq = 0;
 IPAddress broadcastIP;
-bool captureEnabled = false; // by default no data capture
+bool captureEnabled = false; // by default capture is disabled
 
 // ---------------- Web server / websocket ----------------
 AsyncWebServer server(80);
@@ -47,21 +46,21 @@ unsigned long wsSeq = 0;
 
 #define TRIG_SIDE  D7
 #define ECHO_SIDE  D5
-#define TRIG_FRONT D7 //can use Pin GPIO 3 But it requires disconnect before flashing
+#define TRIG_FRONT D7    // D7 is easier as GPIO3 - use is clumsy, need to  disconnect before flashing
 #define ECHO_FRONT D6
 
-const bool FOLLOW_RIGHT_WALL = false;
-const float LOST_WALL_CM = 60.0;
-const int   PIVOT_SPEED  = 150;
+bool  FOLLOW_RIGHT_WALL = false;
+float LOST_WALL_CM = 60.0;
+int   PIVOT_SPEED  = 65;
 
-// ---------------- Tunable parameters via UI, This will help understand how the PID actually work ----------------
+// ---------------- Tunable parameters (live-adjustable via UI) ----------------
 float Kp = 6.0;
 float Ki = 0.02;
 float Kd = 3.0;
 float SETPOINT_CM   = 20.0;
 float FRONT_STOP_CM = 20.0;
-int   BASE_SPEED    = 60;
-int   MAX_SPEED     = 255;
+int   BASE_SPEED    = 65;
+int   MAX_SPEED     = 150;
 
 // ---------------- Mode + RC state ----------------
 enum RobotMode { MODE_RC, MODE_WALL_FOLLOW };
@@ -76,12 +75,14 @@ float integral = 0;
 float lastError = 0;
 unsigned long lastTime = 0;
 
+bool wallFollowActive = false; // motors stay at 0 in WALL mode until this is true
+
 unsigned long lastSampleTime = 0;
 const unsigned long SAMPLE_INTERVAL_MS = 50; // this is interval between two successive sensor readings.
 // only min is confirmed, worst case max delay can go beyond 50 is processor is busy with any other blocking calls.
-// to reduce the jitter since the data capture is also being done. 
+// to reduce the jitter since the data capture is also being done
 
-// ---------------- Web UI (served from nodemcu flash, no filesystem needed) ----------------
+// ---------------- Web UI (served from flash, no filesystem needed) ----------------
 const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html>
@@ -107,7 +108,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
   #captureBtn{width:100%;margin-top:10px;background:#555;}
   #captureBtn.active{background:#f90;}
 </style>
-</head>
+</head>65
 <body>
 <h1>Robot Control</h1>
 <button id="estop">STOP</button>
@@ -121,15 +122,24 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
   <div class="row"><label>Kp</label><input id="kp" type="number" step="0.1" value="6.0"></div>
   <div class="row"><label>Ki</label><input id="ki" type="number" step="0.01" value="0.02"></div>
   <div class="row"><label>Kd</label><input id="kd" type="number" step="0.1" value="3.0"></div>
-  <div class="row"><label>Setpoint (cm)</label><input id="setpoint" type="number" value="15"></div>
-  <div class="row"><label>Base Speed</label><input id="baseSpeed" type="number" value="180"></div>
+  <div class="row"><label>Setpoint (cm)</label><input id="setpoint" type="number" value="20"></div>
+  <div class="row"><label>Base Speed</label><input id="baseSpeed" type="number" value="65"></div>
   <div class="row"><label>Front Stop (cm)</label><input id="frontStop" type="number" value="20"></div>
-  <div class="row"><label>Max Speed</label><input id="maxSpeed" type="number" value="255"></div>
+  <div class="row"><label>Max Speed</label><input id="maxSpeed" type="number" value="100"></div>
+  <div class="row"><label>Follow Side</label>
+    <select id="followRight" style="background:#222;color:#eee;border:1px solid #555;padding:6px;border-radius:4px;">
+      <option value="1">Right wall</option>
+      <option value="0">Left wall</option>
+    </select>
+  </div>
+  <div class="row"><label>Lost Wall (cm)</label><input id="lostWall" type="number" value="60"></div>
+  <div class="row"><label>Pivot Speed</label><input id="pivotSpeed" type="number" value="65"></div>
   <button id="applyParams">Apply</button>
+  <button id="wallRunBtn" style="width:100%;margin-top:10px;background:#0a7;">Start Wall Follow</button>
 </div>
 
 <div id="panel-rc" class="panel active">
-  <div class="row"><label>RC Speed</label><input id="rcSpeed" type="number" value="200"></div>
+  <div class="row"><label>RC Speed</label><input id="rcSpeed" type="number" value="100"></div>
   <div class="dpad">
     <div></div><button data-l="1" data-r="1">&#8593;</button><div></div>
     <button data-l="-1" data-r="1">&#8630;</button><button data-l="0" data-r="0">&#9632;</button><button data-l="1" data-r="-1">&#8631;</button>
@@ -143,14 +153,26 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <script>
 let ws;
 let capturing = false;
+let wallRunning = false;
+
+function setWallRunBtn(running) {
+  wallRunning = running;
+  const btn = document.getElementById("wallRunBtn");
+  btn.innerText = running ? "Stop Wall Follow" : "Start Wall Follow";
+  btn.style.background = running ? "#c33" : "#0a7";
+}
 
 function connect() {
   ws = new WebSocket("ws://" + location.host + "/ws");
   ws.onmessage = (evt) => {
     const d = JSON.parse(evt.data);
     document.getElementById("telemetry").innerText =
-      "mode=" + d.mode + "\nside=" + d.side + "cm  front=" + d.front + "cm" +
-      "\nerr=" + d.error.toFixed(2) + "  out=" + d.output.toFixed(2) +
+      "mode=" + d.mode + "  running=" + d.running +
+      "\nside=" + d.side + "cm  front=" + d.front + "cm" +
+      "\nKp=" + d.kp + " Ki=" + d.ki + " Kd=" + d.kd +
+      "\ndt=" + d.dt.toFixed(3) + "  err=" + d.error.toFixed(2) +
+      "\nintegral=" + d.integral.toFixed(2) + "  derivative=" + d.derivative.toFixed(2) +
+      "\noutput=" + d.output.toFixed(2) +
       "\nL=" + d.left + "  R=" + d.right + "\ncapture=" + d.capture;
   };
   ws.onclose = () => setTimeout(connect, 1000);
@@ -168,11 +190,21 @@ document.querySelectorAll(".tab").forEach(t => {
     t.classList.add("active");
     document.getElementById("panel-" + t.dataset.tab).classList.add("active");
     send({type: "mode", value: t.dataset.tab === "rc" ? "RC" : "WALL"});
+    if (t.dataset.tab === "wall") {
+      setWallRunBtn(false); // always land in "stopped" so params can be set safely first
+      send({type: "wallRun", value: false});
+    }
   };
 });
 
+document.getElementById("wallRunBtn").onclick = () => {
+  setWallRunBtn(!wallRunning);
+  send({type: "wallRun", value: wallRunning});
+};
+
 document.getElementById("estop").onclick = () => {
   document.querySelector('.tab[data-tab="rc"]').click();
+  setWallRunBtn(false);
   send({type: "drive", left: 0, right: 0});
 };
 
@@ -185,7 +217,10 @@ document.getElementById("applyParams").onclick = () => {
     setpoint: parseFloat(document.getElementById("setpoint").value),
     baseSpeed: parseInt(document.getElementById("baseSpeed").value),
     frontStop: parseFloat(document.getElementById("frontStop").value),
-    maxSpeed: parseInt(document.getElementById("maxSpeed").value)
+    maxSpeed: parseInt(document.getElementById("maxSpeed").value),
+    followRight: parseInt(document.getElementById("followRight").value) === 1,
+    lostWall: parseFloat(document.getElementById("lostWall").value),
+    pivotSpeed: parseInt(document.getElementById("pivotSpeed").value)
   });
 };
 
@@ -243,38 +278,48 @@ void drive(int leftSpeed, int rightSpeed) {
   setMotor(ENB, IN3, IN4, leftSpeed);
   setMotor(ENA, IN1, IN2, rightSpeed);
 }
-
 void stopMotors() {
   analogWrite(ENA, 0);
   analogWrite(ENB, 0);
 }
 
 // ---------------- Telemetry ----------------
-void sendTelemetryWs(long sideCM, long frontCM, float error, float output, int leftSpeed, int rightSpeed) {
+void sendTelemetryWs(long sideCM, long frontCM, float error, float dt, float derivative,
+                      float output, int leftSpeed, int rightSpeed, bool running) {
   if (ws.count() == 0) return;
-  StaticJsonDocument<256> doc;
+  StaticJsonDocument<384> doc;
   doc["seq"] = wsSeq++;
   doc["t"] = millis();
   doc["mode"] = (currentMode == MODE_RC) ? "RC" : "WALL";
+  doc["running"] = running;
   doc["side"] = sideCM;
   doc["front"] = frontCM;
+  doc["kp"] = Kp;
+  doc["ki"] = Ki;
+  doc["kd"] = Kd;
+  doc["dt"] = dt;
   doc["error"] = error;
+  doc["integral"] = integral;
+  doc["derivative"] = derivative;
   doc["output"] = output;
   doc["left"] = leftSpeed;
   doc["right"] = rightSpeed;
   doc["capture"] = captureEnabled;
 
-  char buf[256];
+  char buf[384];
   size_t len = serializeJson(doc, buf);
   ws.textAll(buf, len);
 }
 
-void sendTelemetryUdp(long sideCM, long frontCM, float error, float output, int leftSpeed, int rightSpeed) {
+void sendTelemetryUdp(long sideCM, long frontCM, float error, float dt, float derivative,
+                       float output, int leftSpeed, int rightSpeed, bool running) {
   if (WiFi.status() != WL_CONNECTED) return;
-  char buf[160];
-  int len = snprintf(buf, sizeof(buf), "%lu,%lu,%s,%ld,%ld,%.2f,%.2f,%d,%d",
-                      udpSeq++, millis(), (currentMode == MODE_RC) ? "RC" : "WALL",
-                      sideCM, frontCM, error, output, leftSpeed, rightSpeed);
+  char buf[220];
+  int len = snprintf(buf, sizeof(buf),
+                      "%lu,%lu,%s,%d,%ld,%ld,%.3f,%.3f,%.3f,%.4f,%.2f,%.2f,%.2f,%.2f,%d,%d",
+                      udpSeq++, millis(), (currentMode == MODE_RC) ? "RC" : "WALL", running,
+                      sideCM, frontCM, Kp, Ki, Kd, dt, error, integral, derivative, output,
+                      leftSpeed, rightSpeed);
   udp.beginPacket(USE_BROADCAST ? broadcastIP : PC_IP, PC_PORT);
   udp.write((const uint8_t*)buf, len);
   udp.endPacket();
@@ -298,12 +343,16 @@ void handleWsMessage(char* msg) {
       currentMode = MODE_RC;
       rcLeftSpeed = 0;
       rcRightSpeed = 0;
+      wallFollowActive = false;
     } else if (strcmp(m, "WALL") == 0) {
       currentMode = MODE_WALL_FOLLOW;
+      wallFollowActive = false; // always start stopped - must press Start explicitly
       integral = 0;
       lastError = 0;
       lastTime = millis(); // avoid a dt spike from time spent in RC mode
     }
+  } else if (strcmp(type, "wallRun") == 0) {
+    wallFollowActive = doc["value"] | false;
   } else if (strcmp(type, "params") == 0) {
     if (doc.containsKey("kp")) Kp = doc["kp"];
     if (doc.containsKey("ki")) Ki = doc["ki"];
@@ -312,6 +361,9 @@ void handleWsMessage(char* msg) {
     if (doc.containsKey("baseSpeed")) BASE_SPEED = doc["baseSpeed"];
     if (doc.containsKey("frontStop")) FRONT_STOP_CM = doc["frontStop"];
     if (doc.containsKey("maxSpeed")) MAX_SPEED = doc["maxSpeed"];
+    if (doc.containsKey("followRight")) FOLLOW_RIGHT_WALL = doc["followRight"];
+    if (doc.containsKey("lostWall")) LOST_WALL_CM = doc["lostWall"];
+    if (doc.containsKey("pivotSpeed")) PIVOT_SPEED = doc["pivotSpeed"];
   } else if (strcmp(type, "capture") == 0) {
     captureEnabled = doc["value"] | false;
   }
@@ -337,10 +389,14 @@ void doSensorSampleAndControl() {
 
   float error = 0;
   float output = 0;
+  float dt = 0;
+  float derivative = 0;
   int leftSpeed = 0;
   int rightSpeed = 0;
+  bool running = false;
 
   if (currentMode == MODE_RC) {
+    running = true; // motors always follow the driver's commands in RC mode
     if (millis() - lastRcCommandTime > RC_TIMEOUT_MS) {
       rcLeftSpeed = 0;
       rcRightSpeed = 0;
@@ -350,30 +406,36 @@ void doSensorSampleAndControl() {
     drive(leftSpeed, rightSpeed);
 
   } else { // MODE_WALL_FOLLOW
-    if (frontCM > 0 && frontCM < FRONT_STOP_CM) {
-      if (FOLLOW_RIGHT_WALL) { leftSpeed = -PIVOT_SPEED; rightSpeed = PIVOT_SPEED; }
-      else                   { leftSpeed = PIVOT_SPEED;  rightSpeed = -PIVOT_SPEED; }
-      drive(leftSpeed, rightSpeed);
+    running = wallFollowActive;
+    bool frontBlocked = (frontCM > 0 && frontCM < FRONT_STOP_CM);
+    long effSide = (sideCM < 0) ? (long)LOST_WALL_CM : sideCM;
+    error = SETPOINT_CM - effSide;
+
+    unsigned long now = millis();
+    dt = (now - lastTime) / 1000.0;
+    if (dt <= 0) dt = 0.001;
+    lastTime = now;
+
+    if (frontBlocked) {
+      // reset PID state while pivoting so it doesn't wind up against a wall we're avoiding
       integral = 0;
+      derivative = 0;
       lastError = 0;
     } else {
-      long effSide = (sideCM < 0) ? (long)LOST_WALL_CM : sideCM;
-      error = SETPOINT_CM - effSide;
-
-      unsigned long now = millis();
-      float dt = (now - lastTime) / 1000.0;
-      if (dt <= 0) dt = 0.001;
-
       integral += error * dt;
       integral = constrain(integral, -50, 50);
-      float derivative = (error - lastError) / dt;
-
-      output = Kp * error + Ki * integral + Kd * derivative;
-      output = constrain(output, (float)-BASE_SPEED, (float)BASE_SPEED);
-
+      derivative = (error - lastError) / dt;
       lastError = error;
-      lastTime = now;
+    }
 
+    output = Kp * error + Ki * integral + Kd * derivative;
+    output = constrain(output, (float)-BASE_SPEED, (float)BASE_SPEED);
+
+    // Compute what the motors *would* do - always, so telemetry reflects live PID behavior
+    if (frontBlocked) {
+      if (FOLLOW_RIGHT_WALL) { leftSpeed = -PIVOT_SPEED; rightSpeed = PIVOT_SPEED; }
+      else                   { leftSpeed = PIVOT_SPEED;  rightSpeed = -PIVOT_SPEED; }
+    } else {
       if (FOLLOW_RIGHT_WALL) {
         leftSpeed  = BASE_SPEED - output;
         rightSpeed = BASE_SPEED + output;
@@ -381,12 +443,18 @@ void doSensorSampleAndControl() {
         leftSpeed  = BASE_SPEED + output;
         rightSpeed = BASE_SPEED - output;
       }
+    }
+
+    // Only actually move the motors once Start has been pressed
+    if (wallFollowActive) {
       drive(leftSpeed, rightSpeed);
+    } else {
+      drive(0, 0);
     }
   }
 
-  sendTelemetryWs(sideCM, frontCM, error, output, leftSpeed, rightSpeed);
-  if (captureEnabled) sendTelemetryUdp(sideCM, frontCM, error, output, leftSpeed, rightSpeed);
+  sendTelemetryWs(sideCM, frontCM, error, dt, derivative, output, leftSpeed, rightSpeed, running);
+  if (captureEnabled) sendTelemetryUdp(sideCM, frontCM, error, dt, derivative, output, leftSpeed, rightSpeed, running);
 }
 
 // ---------------- Setup / loop ----------------
@@ -404,7 +472,6 @@ void setup() {
   analogWriteRange(255);
   analogWriteFreq(1000);
   stopMotors();
-  //drive(0, 0);
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
